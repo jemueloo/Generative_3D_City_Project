@@ -933,6 +933,131 @@ else:
 # ---------------- Notebook cell 23 ----------------
 # ---
 # 
+# # Extra — Road network metric
+# 
+# `road_continuity` punches gaps into the road grid, but how much does that
+# actually break the network? This extra adds metrics that score a city's roads:
+# 
+# - **main network size** = number of road cells in the single largest
+#   connected road network, as a % of the whole grid. Bigger = more of the
+#   city you can drive through in one connected piece.
+# - **road connectivity** = that largest network as a fraction of *all* road
+#   cells (`1.0` = one network, lower = broken into fragments).
+# - **fragments** = how many separate road pieces there are.
+# 
+# Then we sweep `road_continuity` and plot the result, averaged over several
+# seeds so the curve isn't just one lucky or unlucky random map.
+# 
+# > **What to expect:** buildings are placed *before* roads, and roads can't
+# > pave over them, so downtowns cut the grid into pieces. Connectivity will
+# > stay well below 1.0 even at `road_continuity=0.95`. That's a real property
+# > of this generator, not a bug -- the knob controls gaps, but buildings
+# > fragment the network too.
+
+# ---------------- Notebook cell 24 ----------------
+from scipy.ndimage import label
+
+
+def road_connectivity(land_use, road_code):
+    """
+    Fraction of road cells in the largest connected road network (0.0 - 1.0).
+    Cells connect up/down/left/right (not diagonally), like real streets.
+    Returns 0.0 if there are no roads at all.
+    """
+    roads = land_use == road_code
+    total = int(roads.sum())
+    if total == 0:
+        return 0.0
+    labels, n_components = label(roads)
+    largest = np.bincount(labels.ravel())[1:].max()
+    return float(largest) / total
+
+
+def road_components(land_use, road_code):
+    """How many separate road fragments the city has."""
+    return int(label(land_use == road_code)[1])
+
+
+def main_network_pct(land_use, road_code):
+    """Size of the largest connected road network, as a % of the whole grid."""
+    roads = land_use == road_code
+    if not roads.any():
+        return 0.0
+    labels, _ = label(roads)
+    return float(np.bincount(labels.ravel())[1:].max()) / roads.size * 100
+
+
+# quick sanity checks on tiny hand-made grids
+_g = np.zeros((5, 5), dtype=np.uint8)
+assert road_connectivity(_g, 2) == 0.0                      # no roads
+_g[2, :] = 2
+assert road_connectivity(_g, 2) == 1.0                      # one straight road
+_g[0, 0] = 2
+assert abs(road_connectivity(_g, 2) - 5 / 6) < 1e-9         # one stray cell cut off
+assert road_components(_g, 2) == 2
+assert abs(main_network_pct(_g, 2) - 5 / 25 * 100) < 1e-9   # 5 of 25 cells
+print("road_connectivity checks passed")
+
+# ---------------- Notebook cell 25 ----------------
+cg = reload_citygen()
+
+terrain, water = cg.generate_terrain(128, archetype="hills", seed=0)
+
+continuities = np.linspace(0.2, 0.95, 10)
+seeds = range(8)
+
+mean_main, mean_conn, mean_frags, mean_road_pct = [], [], [], []
+for rc in continuities:
+    mains, conns, frags, pcts = [], [], [], []
+    for s in seeds:
+        _bh, _lu = cg.generate_buildings(terrain, water, archetype="polycentric",
+                                         num_clusters=3, density=0.6,
+                                         cluster_tightness=0.6, green_amount=0.0,
+                                         road_continuity=float(rc), seed=s)
+        mains.append(main_network_pct(_lu, cg.LAND_ROAD))
+        conns.append(road_connectivity(_lu, cg.LAND_ROAD))
+        frags.append(road_components(_lu, cg.LAND_ROAD))
+        pcts.append((_lu == cg.LAND_ROAD).mean() * 100)
+    mean_main.append(np.mean(mains)); mean_conn.append(np.mean(conns))
+    mean_frags.append(np.mean(frags)); mean_road_pct.append(np.mean(pcts))
+
+print(f"{'continuity':>10}  {'road %':>7}  {'main net %':>10}  {'connectivity':>12}  {'fragments':>9}")
+for row in zip(continuities, mean_road_pct, mean_main, mean_conn, mean_frags):
+    print(f"{row[0]:10.2f}  {row[1]:7.1f}  {row[2]:10.2f}  {row[3]:12.3f}  {row[4]:9.0f}")
+
+# more continuity should give a bigger main network
+assert mean_main[-1] > mean_main[0], "main road network should grow as road_continuity increases"
+
+fig, ax = plt.subplots(figsize=(7.5, 4.5))
+ax.plot(continuities, mean_main, "o-", color="tab:blue", label="main network size")
+ax.plot(continuities, mean_road_pct, "s--", color="tab:gray", label="all roads")
+ax.set_xlabel("road_continuity (input knob)")
+ax.set_ylabel("% of grid")
+ax.set_title(f"Road network vs road_continuity  (mean of {len(seeds)} seeds)")
+ax.legend(); ax.grid(alpha=0.3)
+fig.tight_layout()
+plt.show()
+
+# ---------------- Notebook cell 26 ----------------
+# the same metric on three example cities, shown next to the maps
+cg = reload_citygen()
+
+fig, axes = plt.subplots(1, 3, figsize=(16, 5.5))
+for ax, rc in zip(axes, (0.3, 0.6, 0.95)):
+    _bh, _lu = cg.generate_buildings(terrain, water, archetype="polycentric",
+                                     num_clusters=3, density=0.6, cluster_tightness=0.6,
+                                     green_amount=0.0, road_continuity=rc, seed=5)
+    ax.imshow(land_use_rgb(_lu))
+    ax.set_title(f"road_continuity={rc}\nmain network {main_network_pct(_lu, cg.LAND_ROAD):.1f}% of grid, "
+                 f"{road_components(_lu, cg.LAND_ROAD)} fragments")
+    ax.set_xticks([]); ax.set_yticks([])
+fig.suptitle("Same city, different road_continuity")
+fig.tight_layout()
+plt.show()
+
+# ---------------- Notebook cell 27 ----------------
+# ---
+# 
 # ## Try it yourself
 # 
 # - `--cluster-tightness 0.95` vs `0.05` — compact downtown vs. sprawl
@@ -950,6 +1075,7 @@ else:
 # - [ ] `citygen/buildings.py` written, all building checks passing
 # - [ ] `scripts/generate_city.py` runs end to end against your code
 # - [ ] `scripts/visualize_2d.py` renders your city
+# - [ ] Extra: road connectivity metric + continuity sweep plot
 # - [ ] Changes committed and pushed
 # 
 # ## Coming next
