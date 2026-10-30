@@ -1,6 +1,6 @@
 """
-GIVEN -- no TODOs. Opens a .blend, frames the scene with a camera, and
-renders a PNG with the Workbench engine.
+Opens a .blend, frames the scene with a camera, and renders a PNG with the
+Workbench engine.
 
     blender --background --python scripts/_render_preview.py -- in.blend out.png
 """
@@ -19,7 +19,6 @@ png_out = str(Path(argv[1]).resolve())
 
 bpy.ops.wm.open_mainfile(filepath=blend_in)
 
-# bounding box over all mesh objects, so the camera can frame everything
 meshes = [o for o in bpy.data.objects if o.type == "MESH"]
 if not meshes:
     raise SystemExit("no mesh objects found in the .blend")
@@ -38,7 +37,6 @@ cam_data = bpy.data.cameras.new("PreviewCam")
 cam = bpy.data.objects.new("PreviewCam", cam_data)
 bpy.context.collection.objects.link(cam)
 
-# isometric-ish three-quarter view
 dist = extent * 1.5
 cam.location = (cx + dist * 0.75, cy - dist * 0.75, cz + dist * 0.75)
 cam.rotation_euler = (math.radians(55), 0.0, math.radians(45))
