@@ -102,7 +102,7 @@ docs/
 - [x] 2D preview
 - [x] Blender export with colored materials and printable STL
 - [x] Road-continuity metric
-- [ ] Synthetic training dataset (thousands of randomized cities)
+- [x] Synthetic training dataset (thousands of randomized cities)
 - [ ] Two-stage conditioned ML model: a terrain model feeds a building model so water and slopes suppress buildings coherently
 - [ ] Text-to-parameter model (natural-language description to generator parameters)
 - [ ] Visual interface
