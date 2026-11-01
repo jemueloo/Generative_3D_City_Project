@@ -124,9 +124,4 @@ Python · NumPy · SciPy · Matplotlib · Blender (bpy) · Jupyter · Git/GitHub
 | Model looks all grey | Switch viewport shading to Material Preview |
 
 ## Credits
-
-<<<<<<< HEAD
 Built with the Michigan Data Science Team (MDST), University of Michigan.
-=======
-Built with the Michigan Data Science Team (MDST), University of Michigan.
->>>>>>> 51f87753fdbff1df43466e5012b6ac8a43580124
