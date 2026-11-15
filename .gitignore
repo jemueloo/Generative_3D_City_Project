@@ -5,3 +5,5 @@ __pycache__/
 .venv/
 data/
 text2city/checkpoint/
+data/gallery/
+data/gallery/

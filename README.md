@@ -1,12 +1,12 @@
 # Generative 3D Cities
 
-A pipeline that procedurally generates cities as data grids and turns them into colored, 3D-printable models in Blender. Built with the Michigan Data Science Team (MDST). **Status: in progress.** The generation and export pipeline works end to end, and you can now describe a city in plain English and have a trained model turn the sentence into a generated city (`text2city/infer.py`).
+A pipeline that procedurally generates cities as data grids and turns them into colored, 3D-printable models in Blender. Built with the Michigan Data Science Team (MDST). **Status: in progress.** You can describe a city in plain English, or set its parameters by hand, in a web app (`app.py`). A trained model turns the sentence into generator settings, and the result comes out as a 2D preview, an interactive 3D view, and downloadable PNG, STL and GLB files.
 
 <img width="1200" height="800" alt="image" src="https://github.com/user-attachments/assets/cd4ec8e7-afa3-4948-a106-228dc6bbcdba" />
 
 ## Overview
 
-Every city is represented as a fixed-size grid (128×128) with four channels:
+Every city is represented as a fixed-size grid (128×128 by default) with four channels:
 
 | Channel | Type | Meaning |
 |---|---|---|
@@ -28,14 +28,17 @@ generate_city.py  ->  mycity.npz  ->  visualize_2d.py  ->  mycity_preview.png
 
 "a dense city in the hills..."  ->  text2city model  ->  10 values  ->  generate_city.py command  ->  .npz
                                     (Week 5)                            (Week 6: infer.py)
+
+app.py (Week 7): Prompt mode or Manual mode  ->  the pipeline above  ->  preview + 3D view + downloads
 ```
 
-1. **Terrain generation** (`citygen/terrain.py`): fractal noise shaped by an archetype (flat, hills), with water marked below the water level.
+1. **Terrain generation** (`citygen/terrain.py`): fractal noise shaped by an archetype, with water marked below the water level.
 2. **Building generation** (`citygen/buildings.py`): cluster centers, urban intensity falloff, no buildings on water or steep slopes, then roads with gaps and green space.
 3. **2D preview** (`scripts/visualize_2d.py`): four panels for terrain, water, building height, and land use.
 4. **Blender export** (`scripts/export_to_blender.py`): builds terrain and building meshes, colors them by land use and height, and saves a `.blend` and a printable `.stl`.
-5. **Text-to-parameters** (`text2city/`): a trained model reads a sentence and predicts the generator's settings (see below).
+5. **Text-to-parameters** (`text2city/`): a trained model reads a sentence and predicts the generator's settings.
 6. **Sentence to city** (`text2city/infer.py`): turns the prediction into a `generate_city.py` command, prints it, and runs it.
+7. **Web app** (`app.py`): a Streamlit interface over all of the above.
 
 ## Quick start
 
@@ -43,8 +46,8 @@ Run all commands from the repo root.
 
 ```bash
 # 1. Set up
-python -m venv venv
-source venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 
 # 2. Generate a city
@@ -77,19 +80,65 @@ This needs a trained model first (see [Text-to-parameter model](#text-to-paramet
 python text2city/infer.py "a dense city in the hills with three business hubs" --preview
 ```
 
-It prints the 10 predicted values and the exact `generate_city.py` command they turn into, runs it, and saves `data/from_text.npz` plus a 2D preview. Blender export is the same step as above, on `data/from_text.npz`.
+It prints the 10 predicted values and the exact `generate_city.py` command they turn into, runs it, and saves `data/from_text.npz` plus a 2D preview.
+
+### Run the web app
+
+```bash
+pip install streamlit trimesh
+streamlit run app.py
+```
+
+Then open `http://localhost:8501` if the browser doesn't open on its own. Press `Ctrl+C` in the terminal to stop it.
+
+## Web app (Week 7)
+
+`app.py` is a Streamlit app that puts the whole pipeline behind one page.
+
+**Prompt mode**
+- Type a description, or click one of the example prompts.
+- The app runs `text2city/infer.py` and builds the city.
+- **New variation** re-runs the same sentence with a new seed.
+- **Edit in manual mode** copies the settings it used into the manual controls.
+
+**Manual mode**
+- Environment: terrain type (dropdown), relief, water level (or auto), green amount, green override, road continuity.
+- City: city type (dropdown), clusters, density, cluster tightness, and a seed with a random-seed button.
+- **Generate** runs `scripts/generate_city.py` with those values.
+
+**For every city**
+- A 2D preview (terrain, water, building height, land use).
+- A draggable, colored 3D view in the browser.
+- Downloads for the PNG, the printable STL, and the GLB.
+- A "rebuild it from a terminal" command that reproduces the city exactly.
+- A gallery in the sidebar of all the cities from the session, plus a grid-size selector (64, 96, 128 or 160).
+
+Every city is saved in `data/gallery/` as `.npz`, `.png`, `.glb` and `.stl`.
+
+**Notes**
+- The printable STL comes from `scripts/export_to_blender.py`, so the app needs to find Blender. It checks the `BLENDER` environment variable, then `blender` on your PATH, then the default macOS location. On macOS:
+  ```bash
+  export BLENDER="/Applications/Blender.app/Contents/MacOS/Blender"
+  ```
+  If Blender isn't found, the app still works and falls back to a basic STL that isn't guaranteed printable.
+- The 3D view loads its viewer from the internet, so the browser needs a connection. Large grids make the 3D file heavy, so try 64 or 96 if it is slow.
+- The terrain and city dropdowns come from `citygen`, so any archetype you add to `terrain.py` shows up automatically.
+- If you add terrain types, regenerate the dataset and retrain the text model, because the stale-checkpoint check includes the terrain list.
 
 ## Generator options
 
 | Flag | What it controls |
 |---|---|
 | `--size` | Grid size (default 128) |
-| `--terrain` | Terrain archetype (`flat`, `hills`) |
-| `--city` | City archetype (e.g. `polycentric`, `linear`) |
+| `--terrain` | Terrain archetype (see `citygen`) |
+| `--city` | City archetype (`monocentric`, `polycentric`, `linear`) |
 | `--clusters` | Number of city centers |
 | `--density` | Overall building density |
 | `--cluster-tightness` | How tightly buildings pack around centers |
+| `--relief` | How much the terrain height varies |
+| `--water-level` | How much of the map is water |
 | `--green-amount` | Share of land used for green space |
+| `--green-override` | Let green space replace buildings and roads |
 | `--road-continuity` | How unbroken the road network is |
 | `--seed` | Random seed for reproducible cities |
 
@@ -139,17 +188,18 @@ python text2city/infer.py "a dense city in the hills with three business hubs" -
 | `--dry-run` | Print the command and stop |
 | `--allow-stale` | Use a stale checkpoint anyway |
 
-**Design: the command line is the hand-off.** `infer.py` never calls the generator directly. It predicts the 10 values, converts them to keyword arguments with `to_generator_kwargs()` in `schema.py`, converts those to flags with `kwargs_to_cli_args()`, and prints the resulting `generate_city.py` command as a receipt before running it. If a city looks wrong, copy the printed command, change a number, and run it yourself. That shows which half is wrong: if the predicted numbers are wrong, the model is to blame; if the numbers are right but the city isn't, the generator is.
+**Design: the command line is the hand-off.** `infer.py` never calls the generator directly. It predicts the 10 values, converts them to keyword arguments with `to_generator_kwargs()` in `schema.py`, converts those to flags with `kwargs_to_cli_args()`, and prints the resulting `generate_city.py` command as a receipt before running it. If a city looks wrong, copy the printed command, change a number, and run it yourself. That shows which half is wrong: if the predicted numbers are wrong, the model is to blame; if the numbers are right but the city isn't, the generator is. The web app uses the same idea with its "rebuild it from a terminal" line.
 
-**Does the city match the sentence?** Week 5 checked whether the model predicts the right numbers. Week 6 checks the city itself. The notebook measures each generated city (water share, plus building, road and green share of land cells) and compares pairs of sentences that should differ, such as "extremely dense" against "sparse", averaged over three seeds. Each miss is labeled as a model miss or a generator miss. One of the pairs is my own.
+**Does the city match the sentence?** Week 5 checked whether the model predicts the right numbers. Week 6 checks the city itself. The notebook measures each generated city (water share, plus building, road and green share of land cells) and compares pairs of sentences that should differ, such as "extremely dense" against "sparse", averaged over three seeds. Each miss is labeled as a model miss or a generator miss.
 
 ## Project structure
 
 ```
+app.py                  # Streamlit web app (Prompt mode + Manual mode)
 citygen/
-  city_grid.py      # CityGrid: the four-array data contract, save/load/stats
-  terrain.py        # generate_terrain(...)
-  buildings.py      # generate_buildings(...)
+  city_grid.py          # CityGrid: the four-array data contract, save/load/stats
+  terrain.py            # generate_terrain(...)
+  buildings.py          # generate_buildings(...)
 text2city/
   schema.py             # the 10 parameters, and to_generator_kwargs()
   embedders.py          # sentence embedding (and TF-IDF fallback)
@@ -167,6 +217,8 @@ scripts/
   export_to_blender.py  # runs inside Blender: .npz -> .blend + .stl
 notebooks/
   ...                   # weekly notebooks
+data/
+  gallery/              # cities made in the web app (not tracked in git)
 docs/
   blender_export.md     # how a .npz becomes a .blend
 ```
@@ -183,14 +235,13 @@ docs/
 - [x] Synthetic training dataset (thousands of randomized cities)
 - [x] Text-to-parameter model (natural-language description to generator parameters)
 - [x] Sentence to city: `infer.py` runs the model and the generator end to end
+- [x] Visual interface: Streamlit web app with Prompt mode, Manual mode, 3D view, and downloads
 - [ ] Two-stage conditioned ML model: a terrain model feeds a building model so water and slopes suppress buildings coherently
-- [ ] Visual interface (a small web page in front of `infer.py`)
 - [ ] Final expo demo
 
 ## Tech stack
 
-Python · NumPy · SciPy · Matplotlib · PyTorch · scikit-learn · sentence-transformers · Blender (bpy) · Jupyter · Git/GitHub
-*Planned: Streamlit (interface)*
+Python · NumPy · SciPy · Matplotlib · PyTorch · scikit-learn · sentence-transformers · Streamlit · trimesh · Blender (bpy) · Jupyter · Git/GitHub
 
 ## Troubleshooting
 
@@ -204,6 +255,11 @@ Python · NumPy · SciPy · Matplotlib · PyTorch · scikit-learn · sentence-tr
 | `No module named 'torch'` / `sentence_transformers` | Activate the venv and run `pip install torch scikit-learn sentence-transformers` |
 | `No checkpoint at ...` from `infer.py` | Train one: `python text2city/generate_dataset.py` then `python text2city/train.py` |
 | STALE warning from `evaluate.py` or `infer.py` | The dataset, model code, or terrain list changed after training. Re-run `generate_dataset.py` and `train.py` |
+| `streamlit: command not found` | Activate the venv, then run `pip install streamlit trimesh` |
+| `streamlit run app.py` says the file doesn't exist | Run it from the repo root, where `app.py` lives |
+| The web page is blank | `app.py` is empty or unsaved. Check with `wc -l app.py`, paste the code again, and save |
+| "Generation failed" in the app | Read the error shown. It usually means a script uses a different flag name than `app.py` expects |
+| The STL is not printable from the app | Set the `BLENDER` environment variable (see Web app notes) |
 
 ## Credits
 Built with the Michigan Data Science Team (MDST), University of Michigan.
