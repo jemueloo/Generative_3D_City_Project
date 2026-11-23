@@ -4,9 +4,9 @@ A pipeline that procedurally generates cities as data grids and turns them into 
 
 <img width="1200" height="800" alt="Earlier city previews" src="https://github.com/user-attachments/assets/cd4ec8e7-afa3-4948-a106-228dc6bbcdba" />
 
-Current 3D look. Roofs, a window grid, parks, and water. Commit `docs/city_preview.png` with this README or the picture will not show.
+Current 3D look. Roofs, a window grid, parks, and water. Commit `docs/CityPhoto.png` with this README or the picture will not show.
 
-<img width="1100" height="720" alt="Generated coastal city" src="docs/city_preview.png" />
+<img width="1100" height="720" alt="Generated coastal city" src="docs/CityPhoto.png" />
 
 ## Overview
 
