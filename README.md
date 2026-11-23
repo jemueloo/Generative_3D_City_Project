@@ -244,8 +244,6 @@ Paste the link here when the recording is up:
 
 ## Poster
 
-The file is named `docs/mdst-f26-poster.png` (the "Copy of" prefix is gone) so this link shows on GitHub.
-
 <img width="1600" alt="MDST Fall 2026 poster" src="docs/mdst-f26-poster.png" />
 
 ## Roadmap
