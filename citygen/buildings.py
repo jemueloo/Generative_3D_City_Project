@@ -193,6 +193,22 @@ def generate_buildings(
         sub[mask] = LAND_ROAD
         land_use[axis_slice] = sub
 
+    # A second, tighter grid inside the cluster cores. These streets are
+    # allowed to replace buildings, so a packed downtown still gets blocks
+    # instead of one solid mass. Outside the core the coarse grid stands.
+    # continuity 0 still means no roads at all.
+    if road_continuity > 0.02:
+        core = intensity >= 0.50
+        fine_spacing = max(spacing // 2, 3)
+        downtown = min(1.0, 0.45 + 0.55 * road_continuity)
+        fine_keep = _road_keep_mask(size, rng, downtown)
+        fine = np.zeros((size, size), dtype=bool)
+        fine[::fine_spacing, :] = True
+        fine[:, ::fine_spacing] = True
+        carve = core & fine & fine_keep & buildable
+        land_use[carve] = LAND_ROAD
+        building_height[carve] = 0.0
+
     # TODO 6: add green space -- two different behaviors.
     if green_override:
         # Override mode: green goes anywhere that isn't water, replacing
