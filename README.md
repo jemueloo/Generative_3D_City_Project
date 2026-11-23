@@ -1,12 +1,10 @@
 # Generative 3D Cities
 
-A pipeline that procedurally generates cities as data grids and turns them into colored, 3D-printable models in Blender. **Status: built. The demo video link is the one thing still to add.** You can describe a city in plain English, or set its parameters by hand, in a web app (`app.py`). A trained model turns the sentence into generator settings, and the result comes out as a plan, an interactive 3D view, and downloadable PNG, STL and GLB files.
+A pipeline that procedurally generates cities as data grids and turns them into colored, 3D-printable models in Blender. You can describe a city in plain English, or set its parameters by hand, in a web app (`app.py`). A trained model turns the sentence into generator settings, and the result comes out as a plan, an interactive 3D view, and downloadable PNG, STL and GLB files.
 
 <img width="1200" height="800" alt="Earlier city previews" src="https://github.com/user-attachments/assets/cd4ec8e7-afa3-4948-a106-228dc6bbcdba" />
 
-Current 3D look. Roofs, a window grid, parks, and water. Commit `docs/CityPhoto.png` with this README or the picture will not show.
-
-<img width="1100" height="720" alt="Generated coastal city" src="docs/CityPhoto.png" />
+<img width="1100" height="720" alt="Generated coastal city with roofs, windows, parks, and water" src="docs/CityPhoto.png" />
 
 ## Overview
 
@@ -128,10 +126,10 @@ Every city is saved in `data/gallery/` as `.npz`, `.png`, `.glb` and `.stl`.
   ```bash
   export BLENDER="/Applications/Blender.app/Contents/MacOS/Blender"
   ```
-  If Blender isn't found, the app still works and falls back to a basic STL that isn't guaranteed printable. Leave that box unchecked if you only want the browser model.
+  If Blender isn't found, the app still works and falls back to a basic STL that isn't guaranteed printable.
 - The 3D view loads its viewer from the internet, so the browser needs a connection. Large grids make the 3D file heavy, so try 64 or 96 if it is slow.
-- The terrain and city dropdowns come from `citygen`, so any archetype you add to `terrain.py` shows up automatically.
-- If you add terrain types, regenerate the dataset and retrain the text model, because the stale-checkpoint check includes the terrain list. River was already in that list when the current model was trained, so the new river shape does not require a retrain.
+- The terrain and city dropdowns come from `citygen`, so any archetype you add to `terrain.py` shows up in the app.
+- If you add a terrain type, regenerate the dataset and retrain. The checkpoint fingerprint includes the terrain list, so an old model will not load.
 
 ## Generator options
 
@@ -160,7 +158,7 @@ A small model that reads a plain-English description and predicts the generator'
 - **Targets** (`dataset.py`): turns the CSV into training targets: class indices for categorical parameters, 0–1 rescaled values for continuous ones, and 0/1 flags for binary ones.
 - **Model** (`model.py`): a frozen sentence embedding (`all-MiniLM-L6-v2`) feeds a small shared network with one output head per parameter.
 - **Training** (`train.py`): cross-entropy for categorical heads, mean squared error for continuous heads, and binary cross-entropy for the binary head.
-- **Evaluation** (`evaluate.py`): two tests. The first uses held-out synthetic sentences. The second uses hand-written sentences with different wording, to check that the model learned meaning and didn't just memorize the phrase templates. The hand-written check, which includes the app prompts, landed at about 85%.
+- **Evaluation** (`evaluate.py`): two tests. The first uses held-out synthetic sentences. The second uses hand-written sentences with different wording, to check that the model learned meaning and didn't just memorize the phrase templates. On the hand-written check, including the app prompts, about 85% of expectations were met.
 - **Stale-checkpoint guard** (`freshness.py`): the checkpoint stores a fingerprint of the dataset, the model code, and the terrain and city choices from `citygen`. If any of them change after training, `evaluate.py` and `infer.py` warn that the checkpoint is stale.
 
 **Build the model** (from the repo root)
@@ -171,7 +169,7 @@ python text2city/train.py --embedder sentence-transformer
 python text2city/evaluate.py
 ```
 
-Training writes the model to `text2city/checkpoint/` (`model.pt` and `embedder.txt`). `data/` and `text2city/checkpoint/` are not tracked in git, so everyone rebuilds them with the commands above. The CSV in this repo was already generated at 60,000 rows.
+Training writes the model to `text2city/checkpoint/` (`model.pt` and `embedder.txt`). If that folder is already in the clone, you can skip straight to `infer.py` or the web app. Rebuild it when the dataset, the model code, or the terrain list changes.
 
 **What we found**
 
@@ -183,7 +181,7 @@ Training writes the model to `text2city/checkpoint/` (`model.pt` and `embedder.t
 `text2city/infer.py` connects the model to the generator.
 
 ```bash
-python text2city/infer.py "a quiet town on flat land" --dry-run      # print the command only
+python text2city/infer.py "a quiet town on flat land" --dry-run
 python text2city/infer.py "a dense city in the hills with three business hubs" --seed 7 --preview
 ```
 
@@ -218,7 +216,7 @@ text2city/
   train.py              # training loop
   evaluate.py           # synthetic and hand-written tests
   infer.py              # sentence -> generate_city.py command -> city
-  checkpoint/           # trained model (not tracked in git)
+  checkpoint/           # trained model (model.pt, embedder.txt)
 scripts/
   generate_city.py      # CLI: terrain -> buildings -> .npz
   visualize_2d.py       # 2D preview
@@ -227,20 +225,14 @@ scripts/
 notebooks/
   ...                   # weekly notebooks
 data/
-  gallery/              # cities made in the web app (not tracked in git)
+  gallery/              # cities made in the web app
 docs/
-  city_preview.png      # the 3D picture at the top of this README
+  CityPhoto.png         # the 3D picture at the top of this README
   mdst-f26-poster.png   # the expo poster
   blender_export.md     # how a .npz becomes a .blend
 ```
 
 `export_to_blender.py` runs in Blender's own Python, which has numpy but not scipy. That is why `citygen/__init__.py` only imports terrain and buildings when scipy is available.
-
-## Demo video
-
-Paste the link here when the recording is up:
-
-<!-- https:// -->
 
 ## Poster
 
@@ -260,8 +252,7 @@ Paste the link here when the recording is up:
 - [x] Text-to-parameter model (natural-language description to generator parameters)
 - [x] Sentence to city: `infer.py` runs the model and the generator end to end
 - [x] Visual interface: Streamlit web app with Prompt mode, Manual mode, 3D view, and downloads
-- [x] Buildings already follow the terrain: water and steep slopes get no buildings
-- [ ] Final expo demo video (paste the link under Demo video)
+- [x] Buildings follow the terrain: water and steep slopes get no buildings
 
 ## Tech stack
 
@@ -273,15 +264,15 @@ Python · NumPy · SciPy · Matplotlib · PyTorch · scikit-learn · sentence-tr
 |---|---|
 | `No module named 'citygen'` | Run from the repo root |
 | `No module named 'numpy'` / `scipy` | Activate the venv and run `pip install -r requirements.txt` |
-| `No module named 'scipy'` inside Blender | Use the fixed `citygen/__init__.py`; don't install scipy into Blender |
+| `No module named 'scipy'` inside Blender | Don't install scipy into Blender. `citygen/__init__.py` skips those imports when scipy is missing |
 | Blender quits without saving | Add `--` before the `.npz` path |
 | Model looks all grey | Switch viewport shading to Material Preview |
 | `No module named 'torch'` / `sentence_transformers` | Activate the venv and run `pip install torch scikit-learn sentence-transformers` |
 | `No checkpoint at ...` from `infer.py` | Train one: `python text2city/generate_dataset.py` then `python text2city/train.py` |
 | STALE warning from `evaluate.py` or `infer.py` | The dataset, model code, or terrain list changed after training. Re-run `generate_dataset.py` and `train.py` |
+| `size mismatch for heads.terrain` | The checkpoint was trained with fewer terrains than the code has now. Retrain |
 | `streamlit: command not found` | Activate the venv, then run `pip install streamlit trimesh` |
 | `streamlit run app.py` says the file doesn't exist | Run it from the repo root, where `app.py` lives |
-| The web page is blank | `app.py` is empty or unsaved. Check with `wc -l app.py`, paste the code again, and save |
 | "Generation failed" in the app | Read the error shown. It usually means a script uses a different flag name than `app.py` expects |
 | The STL is not printable from the app | Set the `BLENDER` environment variable (see Web app notes) |
 | The prompt box is black with a red outline | Add `.streamlit/config.toml` with `base = "light"` and restart Streamlit |
